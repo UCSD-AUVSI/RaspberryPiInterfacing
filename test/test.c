@@ -6,26 +6,26 @@
 #include <errno.h>
 #include <termios.h>
 
-int setGpio (char pinNumber, char value)
+int setGpio (char value)
 {
-	if (value > 1) return;
-	char fileName[30];
+	if (value != '1' && value != '0') return;
 	FILE * gpioWrite;
-	strcat (fileName, "/sys/class/gpio/gpio");
-	strcat (fileName, &pinNumber);
-	strcat (fileName, "/value");
-	if ((gpioWrite = fopen (fileName, "w")) == NULL) return -1;
+	FILE * gpioInit;
+	gpioInit = fopen ("/sys/class/gpio/gpio7/direction", "w");
+	fputs ("out", gpioInit);
+	fclose (gpioInit);
+	if ((gpioWrite = fopen ("/sys/class/gpio/gpio7/value", "w")) == NULL) return -1;
 	fputc (value, gpioWrite);
 	fclose (gpioWrite);
 }
-int readGpio (char pinNumber)
+int readGpio ()
 {
-	char fileName[30];
 	FILE * gpioRead;
-	strcat (fileName, "/sys/class/gpio/gpio");
-	strcat (fileName, &pinNumber);
-	strcat (fileName, "/value");
-	if ((gpioRead = fopen (fileName, "r")) == NULL) return -1;
+	FILE * gpioInit;
+	gpioInit = fopen ("/sys/class/gpio/gpio7/direction", "w");
+	fputs ("in", gpioInit);
+	fclose (gpioInit);
+	if ((gpioRead = fopen ("/sys/class/gpio/gpio7/value", "r")) == NULL) return -1;
 	int ret = fgetc (gpioRead);
 	fclose (gpioRead);
 	return ret;
@@ -33,36 +33,31 @@ int readGpio (char pinNumber)
 
 int main ()
 {
-	int gpioIndex;
-	char gpioId;
-	char fileName[32];
 	FILE * gpioInit;
-	char * direction = "in\0";
-	for (gpioIndex = 0, gpioId = '1'; gpioIndex < 26; gpioIndex++, gpioId++)
-	{
-		strcat (fileName, "/sys/class/gpio/export");
-		gpioInit = fopen (fileName, "w");
-		fputc (gpioId, gpioInit);
-		fclose (gpioInit);
-		strcat (fileName, "/sys/class/gpio/gpio");
-		strcat (fileName, &gpioId);
-		strcat (fileName, "/direction");
-		gpioInit = fopen (fileName, "w");
-		fputs (direction, gpioInit);
-		fclose (gpioInit);
-	}
-	int serialFd = open ("/dev/ttyS0", O_RDWR | O_NOCTTY | O_NDELAY);
+	gpioInit = fopen ("/sys/class/gpio/export", "w");
+	fputc ('7', gpioInit);
+	fclose (gpioInit);
+	gpioInit = fopen ("/sys/class/gpio/gpio7/direction", "w");
+	fputs ("out", gpioInit);
+	fclose (gpioInit);
+	setGpio ('1');
+	int serialFd = open ("/dev/ttyUSB0", O_RDWR | O_NOCTTY | O_NDELAY);
 	if (serialFd == -1)
 	{
-		printf ("Error setting up serial port.");
+		perror ("Error setting up serial port - ");
 		return -1;
 	}
+	struct termios options;
+	tcgetattr(serialFd, &options);
+	cfsetispeed(&options, B57600);
+	cfsetospeed(&options, B57600);
+	options.c_cflag |= (CLOCAL |CREAD);
+	tcsetattr(serialFd, TCSANOW, &options);
 	getchar ();
-	char serialIn[5];;
+	write (serialFd, "TEST\r", 5);
+	char serialIn[50];;
 	read (serialFd, serialIn, 4);
 	printf (serialIn);
-	write (serialFd, "TEST\r", 5);
-	setGpio ('7', '1');
 	close (serialFd);
 	return 0;
 }
