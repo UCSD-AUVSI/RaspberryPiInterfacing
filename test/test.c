@@ -5,6 +5,9 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <termios.h>
+//#include <sys/type.h>
+#include <sys/time.h>
+#include <sys/select.h>
 
 int setGpio (char value)
 {
@@ -55,9 +58,20 @@ int main ()
 	tcsetattr(serialFd, TCSANOW, &options);
 	getchar ();
 	write (serialFd, "TEST\r", 5);
-	char serialIn[50];;
-	read (serialFd, serialIn, 4);
-	printf (serialIn);
+	char data_in[50];
+	struct timeval timeout;
+	fd_set fdSet;
+	timeout.tv_sec = 1;
+	timeout.tv_usec = 0;
+	int max_fd;
+	int n;
+	while(read(serialFd, &data_in[0], sizeof(char))){
+		 
+		if(data_in[0] != '\0'){
+			printf("%c\n",data_in[0]);
+		}
+		data_in[0] = '\0';
+	}
 	close (serialFd);
 	return 0;
 }
